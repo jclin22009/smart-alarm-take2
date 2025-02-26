@@ -1,19 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Button } from "~/components/ui/button";
-import { Text,  } from "~/components/ui/text";
+import { Text } from "~/components/ui/text";
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { Card } from '~/components/ui/card';
 import * as rssParser from 'react-native-rss-parser';
 
+interface PodcastPlayerProps {
+  controlState?: 'play' | 'pause' | 'refresh';
+}
 
-const PodcastPlayer = () => {
+const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ controlState }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [latestEpisode, setLatestEpisode] = useState<string | null>(null);
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [podcastTitle, setPodcastTitle] = useState('');
+  const [isInitializing, setIsInitializing] = useState(true);
 
   // Fetch the latest episode from NPR's Up First RSS feed
   const fetchLatestEpisode = async () => {
@@ -48,6 +52,7 @@ const PodcastPlayer = () => {
       console.error(err);
     } finally {
       setLoading(false);
+      setIsInitializing(false);
     }
   };
 
@@ -56,27 +61,17 @@ const PodcastPlayer = () => {
     try {
       if (sound) {
         // If we already have a sound object, just play it
-        await sound.playAsync();
-        setIsPlaying(true);
+        const status = await sound.getStatusAsync();
+        if (status.isLoaded) {
+          await sound.playAsync();
+          setIsPlaying(true);
+        } else {
+          // If sound was unloaded for some reason, reload it
+          await loadAndPlaySound();
+        }
       } else if (latestEpisode) {
         // Otherwise, load and play the audio
-        setLoading(true);
-        
-        // Unload any existing audio first
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-        });
-        
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: latestEpisode },
-          { shouldPlay: true },
-          onPlaybackStatusUpdate
-        );
-        
-        setSound(newSound);
-        setIsPlaying(true);
-        setLoading(false);
+        await loadAndPlaySound();
       } else {
         // If we don't have an episode URL yet, fetch it first
         await fetchLatestEpisode();
@@ -88,35 +83,72 @@ const PodcastPlayer = () => {
     }
   };
 
+  // Helper function to load and play sound
+  const loadAndPlaySound = async () => {
+    if (!latestEpisode) return;
+    
+    setLoading(true);
+    
+    try {
+      // Unload any existing audio first
+      if (sound) {
+        await sound.unloadAsync();
+      }
+      
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+      });
+      
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: latestEpisode },
+        { shouldPlay: true },
+        onPlaybackStatusUpdate
+      );
+      
+      setSound(newSound);
+      setIsPlaying(true);
+    } catch (err) {
+      setError(`Failed to load audio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Pause audio
   const pausePodcast = async () => {
     if (sound) {
-      await sound.pauseAsync();
-      setIsPlaying(false);
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded && status.isPlaying) {
+        await sound.pauseAsync();
+        setIsPlaying(false);
+      }
     }
   };
 
   // Monitor playback status
-
-type PlaybackStatus = AVPlaybackStatus;
-
-const onPlaybackStatusUpdate = (status: PlaybackStatus) => {
+  const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     if (status.isLoaded) {
-        setIsPlaying(status.isPlaying);
-    } else {
-        // Handle unloaded state or errors
-        console.log("Audio not loaded:", status);
-        if (status && 'error' in status) {
-            setError(`Playback error: ${status.error}`);
-        }
+      setIsPlaying(status.isPlaying);
+      
+      // Handle audio finishing
+      if (status.didJustFinish) {
+        setIsPlaying(false);
+      }
+    } else if (!isInitializing && status && 'error' in status) {
+      // Only log and show errors, not normal unloaded states during initialization
+      console.error("Playback error:", status.error);
+      setError(`Playback error: ${status.error}`);
     }
-};
+  };
 
   // Clean up when component unmounts
   useEffect(() => {
     return () => {
       if (sound) {
-        sound?.unloadAsync();
+        sound.unloadAsync().catch(err => 
+          console.warn("Error unloading sound on cleanup:", err)
+        );
       }
     };
   }, [sound]);
@@ -124,7 +156,37 @@ const onPlaybackStatusUpdate = (status: PlaybackStatus) => {
   // Fetch the latest episode when component mounts
   useEffect(() => {
     fetchLatestEpisode();
+    
+    // Ensure proper audio setup on mount
+    const setupAudio = async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+      } catch (err) {
+        console.warn("Error setting audio mode:", err);
+      }
+    };
+    
+    setupAudio();
   }, []);
+
+  // Handle controlState prop changes
+  useEffect(() => {
+    const handleControlChange = async () => {
+      if (controlState === 'play' && !isPlaying) {
+        await playPodcast();
+      } else if (controlState === 'pause' && isPlaying) {
+        await pausePodcast();
+      } else if (controlState === 'refresh') {
+        await fetchLatestEpisode();
+      }
+    };
+    
+    handleControlChange();
+  }, [controlState]);
 
   return (
     <Card className="p-4 mt-4">
