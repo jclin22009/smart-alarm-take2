@@ -1,10 +1,10 @@
-import { View } from "@rn-primitives/slot";
+import { View } from "react-native";
 import DailyCalendar from "./DailyCalendar";
 
 export default function MainScreen() {
   return (
     <View className="flex-1 bg-background">
-      {/* <DailyCalendar /> */}
+      <DailyCalendar />
     </View>
   );
 }
