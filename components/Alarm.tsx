@@ -124,15 +124,34 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
       // Calculate time until alarm
       const now = new Date();
       let triggerTime = new Date(date);
+      
+      console.log('Current time:', now.toLocaleString());
+      console.log('Initial trigger time:', triggerTime.toLocaleString());
+      console.log('Times match?', now.getTime() === triggerTime.getTime() ? 'Yes' : 'No');
 
       // If the selected time is earlier today, schedule for tomorrow
       if (triggerTime.getTime() <= now.getTime()) {
+        console.log('Trigger time is in the past, scheduling for tomorrow');
         triggerTime.setDate(triggerTime.getDate() + 1);
+        console.log('Updated trigger time:', triggerTime.toLocaleString());
       }
 
       // For debugging, log the time difference
       const diff = (triggerTime.getTime() - now.getTime()) / 1000;
-      console.log(`Scheduling alarm for ${triggerTime.toLocaleString()}, which is ${diff} seconds from now`);
+      const hours = Math.floor(diff / 3600);
+      const minutes = Math.floor((diff % 3600) / 60);
+      const seconds = Math.floor(diff % 60);
+      
+      console.log(`Scheduling alarm for ${triggerTime.toLocaleString()}`);
+      console.log(`Time until alarm: ${hours}h ${minutes}m ${seconds}s (${diff} seconds total)`);
+      console.log(`Date object details: ${JSON.stringify({
+        year: triggerTime.getFullYear(),
+        month: triggerTime.getMonth() + 1,
+        day: triggerTime.getDate(),
+        hours: triggerTime.getHours(),
+        minutes: triggerTime.getMinutes(),
+        seconds: triggerTime.getSeconds(),
+      })}`);
 
       // Schedule the notification
       const identifier = await Notifications.scheduleNotificationAsync({
@@ -155,6 +174,18 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
       // Also check if the notification was actually scheduled
       const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
       console.log('All scheduled notifications:', scheduledNotifications);
+      console.log('Number of scheduled notifications:', scheduledNotifications.length);
+      
+      if (scheduledNotifications.length > 0) {
+        console.log('First notification details:', JSON.stringify({
+          id: scheduledNotifications[0].identifier,
+          title: scheduledNotifications[0].content.title,
+          body: scheduledNotifications[0].content.body,
+          trigger: scheduledNotifications[0].trigger,
+        }));
+      } else {
+        console.log('No scheduled notifications found after scheduling');
+      }
     } catch (error) {
       console.error('Error scheduling alarm:', error);
       setDebugInfo(`Error: ${error instanceof Error ? error.message : String(error)}`);
