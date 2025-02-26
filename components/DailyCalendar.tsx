@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Alert, Platform, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Alert, Platform, ActivityIndicator, ScrollView } from 'react-native';
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Separator } from "~/components/ui/separator";
@@ -138,8 +138,8 @@ const DailyCalendar = () => {
   // Render permission request screen
   if (hasPermission === false) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Calendar permission is required to display your events</Text>
+      <View className="flex-1 justify-center items-center p-6 bg-gray-200">
+        <Text className="text-lg text-center mb-4">Calendar permission is required to display your events</Text>
         <Button onPress={requestAccess}>
           <Text>Grant Permission</Text>
         </Button>
@@ -150,7 +150,7 @@ const DailyCalendar = () => {
   // Render loading screen
   if (loading && hasPermission !== null) {
     return (
-      <View style={styles.container}>
+      <View className="flex-1 justify-center items-center p-6 bg-gray-200">
         <ActivityIndicator size="large" />
         <Text>Loading your calendar events...</Text>
       </View>
@@ -160,8 +160,8 @@ const DailyCalendar = () => {
   // Render error screen
   if (error) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
+      <View className="flex-1 justify-center items-center p-6 bg-gray-200">
+        <Text className="text-lg text-center text-red-600 mb-4">{error}</Text>
         <Button onPress={refreshEvents}>
           <Text>Retry</Text>
         </Button>
@@ -170,9 +170,9 @@ const DailyCalendar = () => {
   }
 
   return (
-    <View style={styles.pageContainer}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Today's Events</Text>
+    <View className="flex-1 p-4 bg-gray-200">
+      <View className="flex-row justify-between items-center mb-4">
+        <Text className="text-2xl font-bold">Today's Events</Text>
         <Button variant="ghost" onPress={refreshEvents}>
           <Text>Refresh</Text>
         </Button>
@@ -180,28 +180,26 @@ const DailyCalendar = () => {
       
       <ScrollView>
         {events.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No events scheduled for today</Text>
+          <Card className="p-4 justify-center items-center">
+            <Text className="text-lg text-gray-600">No events scheduled for today</Text>
           </Card>
         ) : (
-          <View style={styles.eventsList}>
+          <View className="space-y-3">
             {events.map((event, index) => (
-              <Card key={event.id} style={styles.eventCard}>
-                <View 
-                  style={[styles.colorStrip, { backgroundColor: event.calendar.color }]} 
-                />
-                <View style={styles.cardContent}>
-                  <Text style={styles.eventTitle}>{event.title}</Text>
-                  <Text style={styles.eventTime}>{formatEventTime(event)}</Text>
+              <Card key={event.id} className="overflow-hidden mb-3">
+                <View className="h-2" style={{ backgroundColor: event.calendar.color }} />
+                <View className="p-4">
+                  <Text className="text-lg font-medium">{event.title}</Text>
+                  <Text className="text-gray-600">{formatEventTime(event)}</Text>
                   
                   {event.location ? (
-                    <Text style={styles.eventLocation}>📍 {event.location}</Text>
+                    <Text className="mt-1 text-sm text-gray-600">📍 {event.location}</Text>
                   ) : null}
                   
                   {event.notes ? (
-                    <View style={styles.notesContainer}>
+                    <View className="mt-2">
                       <Separator />
-                      <Text style={styles.eventNotes}>{event.notes}</Text>
+                      <Text className="text-sm mt-2">{event.notes}</Text>
                     </View>
                   ) : null}
                 </View>
@@ -213,82 +211,5 @@ const DailyCalendar = () => {
     </View>
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: 'rgba(226, 232, 240, 0.3)'
-  },
-  pageContainer: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: 'rgba(226, 232, 240, 0.3)'
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold'
-  },
-  eventsList: {
-    gap: 12
-  },
-  eventCard: {
-    overflow: 'hidden',
-    marginBottom: 12
-  },
-  colorStrip: {
-    height: 8
-  },
-  cardContent: {
-    padding: 16
-  },
-  eventTitle: {
-    fontSize: 18,
-    fontWeight: '500'
-  },
-  eventTime: {
-    color: '#64748b'
-  },
-  eventLocation: {
-    marginTop: 4,
-    fontSize: 14,
-    color: '#64748b'
-  },
-  notesContainer: {
-    marginTop: 8
-  },
-  eventNotes: {
-    fontSize: 14,
-    marginTop: 8
-  },
-  emptyCard: {
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  emptyText: {
-    fontSize: 18,
-    color: '#64748b'
-  },
-  title: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 16
-  },
-  errorText: {
-    fontSize: 18,
-    textAlign: 'center',
-    color: '#ef4444',
-    marginBottom: 16
-  }
-});
 
 export default DailyCalendar;
