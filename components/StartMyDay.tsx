@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { Button } from "~/components/ui/button";
 import { Text } from "~/components/ui/text";
@@ -7,7 +7,12 @@ import CalendarFetcher, { CalendarFetcherRef } from '~/components/CalendarFetche
 import PodcastPlayer from '~/components/PodcastPlayer';
 import * as Speech from 'expo-speech';
 
-const StartMyDay = () => {
+// Define the ref type
+export interface StartMyDayRef {
+  startMyDay: () => void;
+}
+
+const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
   const [isLoading, setIsLoading] = useState(false);
   const [calendarSummary, setCalendarSummary] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -73,6 +78,11 @@ const StartMyDay = () => {
     }
   };
 
+  // Expose the startMyDay method to parent components via ref
+  useImperativeHandle(ref, () => ({
+    startMyDay
+  }));
+
   // Clean up speech if component unmounts
   useEffect(() => {
     return () => {
@@ -83,7 +93,7 @@ const StartMyDay = () => {
   }, [isSpeaking]);
 
   return (
-    <View className="flex-1 p-4">
+    <View className="p-4">
       <Card className="p-6 mb-4">
         <Text className="text-2xl font-bold mb-4 text-center">Morning Routine</Text>
         
@@ -131,6 +141,8 @@ const StartMyDay = () => {
       <PodcastPlayer controlState={podcastControl} />
     </View>
   );
-};
+});
+
+StartMyDay.displayName = 'StartMyDay';
 
 export default StartMyDay;
