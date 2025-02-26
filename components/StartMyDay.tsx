@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, Platform } from 'react-native';
 import { Button } from "~/components/ui/button";
 import { Text } from "~/components/ui/text";
 import { Card } from "~/components/ui/card";
 import CalendarFetcher, { CalendarFetcherRef } from '~/components/CalendarFetcher';
 import PodcastPlayer from '~/components/PodcastPlayer';
 import * as Speech from 'expo-speech';
+import { Audio, InterruptionModeIOS } from 'expo-av';
+import { AVPlaybackStatus } from 'expo-av';
 
 // Define the ref type
 export interface StartMyDayRef {
@@ -22,6 +24,9 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
   
   // Add a ref for the CalendarFetcher component
   const calendarFetcherRef = useRef<CalendarFetcherRef>(null);
+  
+  // Add a timeout ref to handle potential speech issues
+  const speechTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Handle API response from CalendarFetcher
   const handleCalendarResponse = (response: string) => {
@@ -32,37 +37,148 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
     setStep('speaking');
     setIsSpeaking(true);
     
-    Speech.speak(response, {
-      language: 'en',
-      pitch: 1.0,
-      rate: 0.9,
-      onStart: () => {
-        setIsSpeaking(true);
-      },
-      onDone: () => {
+    // Set a safety timeout in case speech onDone doesn't fire
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+    }
+    
+    // Safety timeout to ensure podcast plays even if speech callbacks fail
+    speechTimeoutRef.current = setTimeout(() => {
+      if (step === 'speaking') {
+        console.log('Speech timeout triggered, proceeding to podcast');
+        Speech.stop(); // Stop any ongoing speech
         setIsSpeaking(false);
-        // After speaking is done, start podcast
-        setStep('playing-podcast');
-        setPodcastControl('play');
-      },
-      onStopped: () => {
-        setIsSpeaking(false);
-      },
-      onError: (error: any) => {
-        setError(`Speech error: ${error}`);
-        setIsSpeaking(false);
+        moveToPodcast();
       }
-    });
+    }, 30000); // 30-second timeout (adjust based on typical summary length)
+    
+    // Add an initialization delay to ensure audio system is fully ready
+    // This is crucial for when the app is launched from a notification/alarm
+    setTimeout(async () => {
+      try {
+        console.log('Setting up audio mode for speech...');
+        
+        // First, make sure we release any existing audio sessions
+        await Audio.setIsEnabledAsync(false);
+        await new Promise(resolve => setTimeout(resolve, 300)); // Short delay
+        
+        // Then re-enable and configure audio properly
+        await Audio.setIsEnabledAsync(true);
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false, // Use speaker, not earpiece
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        });
+        
+        console.log('Audio mode set, starting speech');
+        
+        // Now start the speech with proper audio setup
+        Speech.speak(response, {
+          language: 'en',
+          pitch: 1.0,
+          rate: 0.9,
+          onStart: () => {
+            console.log('Speech started');
+            setIsSpeaking(true);
+          },
+          onDone: () => {
+            console.log('Speech completed, moving to podcast');
+            setIsSpeaking(false);
+            
+            // Clear the safety timeout since speech completed naturally
+            if (speechTimeoutRef.current) {
+              clearTimeout(speechTimeoutRef.current);
+              speechTimeoutRef.current = null;
+            }
+            
+            moveToPodcast();
+          },
+          onStopped: () => {
+            console.log('Speech stopped');
+            setIsSpeaking(false);
+          },
+          onError: (error: any) => {
+            console.error('Speech error:', error);
+            setError(`Speech error: ${error}`);
+            setIsSpeaking(false);
+            
+            // Even if speech fails, we should still try to play the podcast
+            moveToPodcast();
+          }
+        });
+      } catch (err) {
+        console.error('Audio setup error:', err);
+        setError(`Audio setup error: ${err instanceof Error ? err.message : String(err)}`);
+        
+        // If audio setup fails, still try to do speech but it might be silent
+        Speech.speak(response, {
+          onDone: () => moveToPodcast(),
+          onError: () => moveToPodcast()
+        });
+      }
+    }, 800); // Add a delay to ensure app is fully awake when coming from notification
+  };
+  
+  // Separate function to handle transition to podcast
+  const moveToPodcast = () => {
+    console.log('Moving to podcast playback');
+    setStep('playing-podcast');
+    
+    // Small delay before starting podcast to ensure audio resources are properly released
+    setTimeout(() => {
+      setPodcastControl('play');
+    }, 500);
   };
 
   // Start the day routine
-  const startMyDay = () => {
+  const startMyDay = async () => {
+    console.log('Starting my day routine');
     setIsLoading(true);
     setError(null);
     setStep('fetching-calendar');
     
     // Reset podcast control
     setPodcastControl(undefined);
+    
+    // Stop any ongoing speech
+    if (isSpeaking) {
+      Speech.stop();
+    }
+    
+    // Clear any existing timeout
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+    
+    // Initialize audio system early - important for waking from alarm
+    try {
+      console.log('Initializing audio system...');
+      
+      // First ensure audio is enabled (needed when app just started from alarm)
+      await Audio.setIsEnabledAsync(true);
+      
+      // Do a quick audio check to ensure the system is awake
+      const soundObj = new Audio.Sound();
+      // Load a tiny silent audio file to "prime" the audio system
+      // This creates the audio session without playing anything noticeable
+      await soundObj.loadAsync(require('~/assets/sounds/silent.mp3'));
+      await soundObj.playAsync();
+      
+      // Give it a moment to ensure audio is initialized
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Then unload it
+      await soundObj.unloadAsync();
+      
+      console.log('Audio system initialized');
+    } catch (err) {
+      console.warn('Audio initialization issue, continuing anyway:', err);
+      // We'll continue even if this fails
+    }
     
     // Trigger calendar fetching through the ref
     if (calendarFetcherRef.current) {
@@ -83,11 +199,15 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
     startMyDay
   }));
 
-  // Clean up speech if component unmounts
+  // Clean up speech and timeouts if component unmounts
   useEffect(() => {
     return () => {
       if (isSpeaking) {
         Speech.stop();
+      }
+      
+      if (speechTimeoutRef.current) {
+        clearTimeout(speechTimeoutRef.current);
       }
     };
   }, [isSpeaking]);
@@ -95,7 +215,6 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
   return (
     <View className="p-4">
       <Card className="p-6 mb-4">
-        <Text className="text-2xl font-bold mb-4 text-center">Morning Routine</Text>
         
         <Button 
           size="lg" 
