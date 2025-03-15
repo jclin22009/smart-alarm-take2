@@ -13,7 +13,7 @@ import { setAndroidNavigationBar } from '~/lib/android-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeIOS } from 'expo-av';
 
 // Configure notifications for the entire app
 Notifications.setNotificationHandler({
@@ -46,6 +46,7 @@ const configureAudioForBackground = async () => {
       playsInSilentModeIOS: true,
       staysActiveInBackground: true,
       shouldDuckAndroid: false,
+      interruptionModeIOS: InterruptionModeIOS.DoNotMix,
     });
     console.log("Audio configured for background playback");
   } catch (error) {
@@ -79,23 +80,11 @@ export default function RootLayout() {
           allowAlert: true,
           allowBadge: true,
           allowSound: true,
-          allowAnnouncements: true,
+          allowCriticalAlerts: true,
         },
       });
     }
     
-    // Set Android notification channel for alarms
-    if (Platform.OS === 'android') {
-      Notifications.setNotificationChannelAsync('alarms', {
-        name: 'Alarms',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDnd: true,
-        sound: true,
-      });
-    }
     
     setIsColorSchemeLoaded(true);
     hasMounted.current = true;

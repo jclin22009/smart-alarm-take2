@@ -171,11 +171,11 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
         lightColor: '#FF231F7C',
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
         bypassDnd: true,
-        sound: true,
+        sound: 'default',
       });
     }
     
-    await Notifications.presentNotificationAsync({
+    await Notifications.scheduleNotificationAsync({
       content: {
         title: "Good Morning",
         body: "Your day is starting now",
@@ -321,7 +321,7 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
   }, [isSpeaking]);
 
   return (
-    <View className="p-4">
+    <View className="">
       <Card className="p-6 mb-4">
         
         <Button 

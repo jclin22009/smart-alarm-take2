@@ -189,7 +189,7 @@ const PodcastPlayer: React.FC<PodcastPlayerProps> = ({ controlState }) => {
   }, [controlState]);
 
   return (
-    <Card className="p-4 mt-4">
+    <Card className="p-4">
       <Text className="font-bold text-lg mb-2">NPR Up First Podcast</Text>
       
       {loading ? (
