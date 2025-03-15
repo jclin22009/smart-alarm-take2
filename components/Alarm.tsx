@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Switch, Platform, Pressable, Alert } from "react-native";
+import { View, Switch, Platform, Pressable } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -7,6 +7,7 @@ import { Text } from "~/components/ui/text";
 import { cn } from "~/lib/utils";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
+import { Dialog, DialogContent, DialogHeader, DialogFooter } from "~/components/ui/dialog";
 
 // Configure notifications to show alerts and play sounds
 Notifications.setNotificationHandler({
@@ -24,7 +25,8 @@ interface AlarmProps {
 const Alarm = ({ onTrigger }: AlarmProps) => {
   const [isEnabled, setIsEnabled] = useState(false);
   const [date, setDate] = useState(new Date());
-  const [showPicker, setShowPicker] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [tempDate, setTempDate] = useState(new Date());
   const [notification, setNotification] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string | null>(null);
@@ -80,32 +82,6 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
     };
   }, []);
 
-  // Schedule a test notification for debugging
-  const scheduleTestNotification = async () => {
-    try {
-      // Schedule a notification 10 seconds from now
-      const testIdentifier = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Test Notification",
-          body: "This is a test notification (10 seconds after)",
-          data: { action: "startMyDay" },
-        },
-        trigger: {
-          seconds: 10, // this is right. it automatically infers. don't give the type!!
-        },
-      });
-      setDebugInfo(`Test notification scheduled: ${testIdentifier}`);
-      console.log(
-        "Test notification scheduled for 10 seconds from now:",
-        testIdentifier
-      );
-    } catch (error) {
-      console.error("Error scheduling test notification:", error);
-      setDebugInfo(
-        `Error: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  };
 
   // Update notification when alarm status changes
   useEffect(() => {
@@ -245,9 +221,26 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
     }
   };
 
-  // Toggle time picker
-  const toggleTimePicker = () => {
-    setShowPicker(!showPicker);
+  // Open edit dialog, initializing tempDate with current date
+  const openEditDialog = () => {
+    setTempDate(new Date(date));
+    setDialogOpen(true);
+  };
+
+  // Save changes from dialog
+  const saveChanges = () => {
+    setDate(tempDate);
+    setDialogOpen(false);
+    
+    // If alarm is enabled, reschedule with new time
+    if (isEnabled && hasPermission) {
+      scheduleAlarm();
+    }
+  };
+
+  // Cancel dialog changes
+  const cancelChanges = () => {
+    setDialogOpen(false);
   };
 
   // Request permissions for notifications
@@ -287,93 +280,103 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
     return status;
   }
 
-  // Handle time change
-  const onChange = (event: any, selectedDate?: Date) => {
-    if (Platform.OS === "android") {
-      setShowPicker(false);
-    }
-
+  // Handle time change in the dialog
+  const onTimeChange = (event: any, selectedDate?: Date) => {
     if (selectedDate) {
       // Only update the time (hour, minute) and preserve the current date
-      const currentDate = new Date();
+      const currentDate = new Date(tempDate);
       currentDate.setHours(selectedDate.getHours());
       currentDate.setMinutes(selectedDate.getMinutes());
       currentDate.setSeconds(0);
-      setDate(currentDate);
+      setTempDate(currentDate);
     }
   };
 
   return (
-    <Card className="p-6 mb-4">
-      <Text className="text-2xl font-bold mb-4 text-center">Smart Alarm</Text>
+    <>
+      <Card className="p-6 mb-4">
+        <Text className="text-2xl font-bold mb-4 text-center">Smart Alarm</Text>
 
-      <View className="flex-row justify-between items-center mb-6">
-        <Pressable onPress={toggleTimePicker}>
+        <Pressable 
+          onPress={openEditDialog}
+          className="flex-row justify-between items-center mb-6 bg-secondary/20 p-4 rounded-lg"
+        >
           <Text className="text-3xl font-bold">{formattedTime}</Text>
+          <Switch
+            trackColor={{ false: "#767577", true: "#b4d1ec" }}
+            thumbColor={isEnabled ? "#0284c7" : "#f4f3f4"}
+            onValueChange={setIsEnabled}
+            value={isEnabled}
+          />
         </Pressable>
 
-        <Switch
-          trackColor={{ false: "#767577", true: "#b4d1ec" }}
-          thumbColor={isEnabled ? "#0284c7" : "#f4f3f4"}
-          onValueChange={setIsEnabled}
-          value={isEnabled}
-        />
-      </View>
+        <View className="bg-primary-foreground/10 rounded-lg p-4 mb-3">
+          <Text
+            className={cn(
+              "text-sm",
+              isEnabled ? "text-green-600 dark:text-green-400" : "text-gray-500"
+            )}
+          >
+            {isEnabled ? `Alarm set for ${formattedTime}` : "Alarm is disabled"}
+          </Text>
+          <Text className="text-xs text-gray-500 mt-1">
+            When triggered, "Start My Day Right" will automatically run
+          </Text>
+        </View>
 
-      {showPicker && (
-        <View className="mb-4">
-          <DateTimePicker
-            value={date}
-            mode="time"
-            display={Platform.OS === "ios" ? "spinner" : "default"}
-            onChange={onChange}
-          />
+        {/* Debug info */}
+        {debugInfo && (
+          <View className="bg-secondary-foreground/10 rounded-lg p-2 mt-2">
+            <Text className="text-xs text-gray-500">{debugInfo}</Text>
+          </View>
+        )}
 
-          {Platform.OS === "ios" && (
-            <Button onPress={() => setShowPicker(false)} className="mt-2">
-              <Text>Done</Text>
+        {!hasPermission && (
+          <Text className="text-xs text-red-500 mt-2">
+            Notification permissions not granted. Please enable notifications for
+            this app in your device settings.
+          </Text>
+        )}
+      </Card>
+
+      {/* Edit Alarm Dialog */}
+      <Dialog isOpen={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <Text className="text-xl font-semibold">Edit Alarm</Text>
+          </DialogHeader>
+
+          <View className="items-center py-4">
+            <DateTimePicker
+              value={tempDate}
+              mode="time"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={onTimeChange}
+              themeVariant="light"
+            />
+          </View>
+
+          <View className="mt-2">
+            <Text className="text-sm text-gray-500">
+              When this alarm goes off, "Start My Day Right" will automatically begin.
+            </Text>
+          </View>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onPress={cancelChanges} 
+              className="mr-2"
+            >
+              <Text>Cancel</Text>
             </Button>
-          )}
-        </View>
-      )}
-
-      <View className="bg-primary-foreground/10 rounded-lg p-4 mb-3">
-        <Text
-          className={cn(
-            "text-sm",
-            isEnabled ? "text-green-600 dark:text-green-400" : "text-gray-500"
-          )}
-        >
-          {isEnabled ? `Alarm set for ${formattedTime}` : "Alarm is disabled"}
-        </Text>
-        <Text className="text-xs text-gray-500 mt-1">
-          When triggered, "Start My Day Right" will automatically run
-        </Text>
-      </View>
-
-      {/* Test notification button */}
-      <Button
-        variant="outline"
-        onPress={scheduleTestNotification}
-        className="mb-2"
-      >
-        <Text>Test Notification (10s)</Text>
-      </Button>
-
-      {/* Debug info */}
-      {debugInfo && (
-        <View className="bg-secondary-foreground/10 rounded-lg p-2 mt-2">
-          <Text className="text-xs text-gray-500">{debugInfo}</Text>
-        </View>
-      )}
-
-      {!hasPermission && (
-        <Text className="text-xs text-red-500 mt-2">
-          Notification permissions not granted. Please enable notifications for
-          this app in your device settings.
-        </Text>
-      )}
-    </Card>
+            <Button onPress={saveChanges}>
+              <Text>Save</Text>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 
