@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Switch, Platform, Pressable } from "react-native";
+import { View, Switch, Platform, Pressable, AppState } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -7,7 +7,58 @@ import { Text } from "~/components/ui/text";
 import { cn } from "~/lib/utils";
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
-import { Dialog, DialogContent, DialogHeader, DialogFooter } from "~/components/ui/dialog";
+import * as TaskManager from "expo-task-manager";
+import * as BackgroundFetch from "expo-background-fetch";
+import { Audio } from "expo-av";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+} from "~/components/ui/dialog";
+import { useColorScheme } from "~/lib/useColorScheme";
+import { MoreHorizontal } from "lucide-react-native";
+
+const BACKGROUND_ALARM_TASK = "background-alarm-task";
+
+// Define the background task
+TaskManager.defineTask(BACKGROUND_ALARM_TASK, async () => {
+  try {
+    console.log("[Background Task] Checking if alarm should trigger");
+    
+    // Get all scheduled notifications
+    const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
+    
+    // Get current time
+    const now = new Date();
+    
+    // Check if any alarm should trigger now
+    for (const notification of scheduledNotifications) {
+      if (notification.content.data?.type === "alarm") {
+        const triggerTime = new Date(notification.trigger.value);
+        const timeDiff = (triggerTime.getTime() - now.getTime()) / 1000;
+        
+        console.log(`[Background Task] Alarm scheduled for ${triggerTime.toLocaleString()}`);
+        console.log(`[Background Task] Time until alarm: ${Math.floor(timeDiff / 60)} minutes ${Math.floor(timeDiff % 60)} seconds`);
+        
+        // If the alarm is within 1 minute of triggering, prepare audio system
+        if (timeDiff > 0 && timeDiff < 60) {
+          console.log("[Background Task] Alarm is about to trigger, preparing audio system");
+          await Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+            staysActiveInBackground: true,
+            shouldDuckAndroid: false,
+          });
+        }
+      }
+    }
+    
+    return BackgroundFetch.BackgroundFetchResult.NewData;
+  } catch (error) {
+    console.error("[Background Task] Error:", error);
+    return BackgroundFetch.BackgroundFetchResult.Failed;
+  }
+});
 
 // Configure notifications to show alerts and play sounds
 Notifications.setNotificationHandler({
@@ -15,6 +66,7 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    priority: Notifications.AndroidNotificationPriority.MAX,
   }),
 });
 
@@ -23,6 +75,7 @@ interface AlarmProps {
 }
 
 const Alarm = ({ onTrigger }: AlarmProps) => {
+  const { isDarkColorScheme } = useColorScheme();
   const [isEnabled, setIsEnabled] = useState(false);
   const [date, setDate] = useState(new Date());
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,11 +95,31 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
   });
 
   // Request notification permissions on mount
+  // Initialize background fetch task
+  const registerBackgroundFetchAsync = async () => {
+    try {
+      await BackgroundFetch.registerTaskAsync(BACKGROUND_ALARM_TASK, {
+        minimumInterval: 60, // 1 minute
+        stopOnTerminate: false,
+        startOnBoot: true,
+      });
+      console.log("Background fetch task registered");
+    } catch (err) {
+      console.error("Background fetch registration failed:", err);
+    }
+  };
+
+  // Subscribe to app state changes to reinitialize alarm when app comes to foreground
+  const appStateListener = useRef<any>(null);
+  
   useEffect(() => {
     registerForPushNotificationsAsync().then((status) => {
       setHasPermission(status === "granted");
       if (status !== "granted") {
         setDebugInfo("Notification permissions not granted");
+      } else {
+        // Register background task if permissions granted
+        registerBackgroundFetchAsync();
       }
     });
 
@@ -72,16 +145,32 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
         }
       });
 
+    // Listen for app state changes
+    appStateListener.current = AppState.addEventListener("change", (nextAppState) => {
+      if (nextAppState === "active") {
+        // Check and refresh alarms when app comes to foreground
+        Notifications.getAllScheduledNotificationsAsync().then(
+          (notifications) => {
+            console.log("Currently scheduled notifications:", notifications);
+            // If alarm is enabled but no notifications exist, reschedule
+            if (isEnabled && notifications.length === 0) {
+              scheduleAlarm();
+            }
+          }
+        );
+      }
+    });
+
     // Clean up listeners when the component unmounts
     return () => {
       Notifications.removeNotificationSubscription(
         notificationListener.current!
       );
       Notifications.removeNotificationSubscription(responseListener.current!);
+      appStateListener.current?.remove();
       cancelAlarm();
     };
   }, []);
-
 
   // Update notification when alarm status changes
   useEffect(() => {
@@ -155,13 +244,35 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
         })}`
       );
 
-      // Schedule the notification
+      // Create a persistent "alarm set" notification
+      await Notifications.setNotificationCategoryAsync("alarm", [
+        {
+          identifier: "dismiss",
+          buttonTitle: "Dismiss",
+          options: {
+            isDestructive: true,
+          },
+        },
+      ]);
+
+      // Schedule the actual alarm notification
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
-          title: "Smart Alarm",
+          title: "Good Morning",
           body: "Time to start your day right!",
-          data: { action: "startMyDay" },
+          data: { 
+            action: "startMyDay",
+            type: "alarm",
+            alarmTime: triggerTime.toISOString()
+          },
           sound: true,
+          // Add categoryIdentifier for actions
+          categoryIdentifier: "alarm",
+          // Make the notification sticky on Android
+          sticky: Platform.OS === "android",
+          autoDismiss: false,
+          // Ensure highest priority on Android
+          priority: "max",
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -174,6 +285,9 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
       setDebugInfo(
         `Alarm scheduled: ${identifier} for ${triggerTime.toLocaleTimeString()}`
       );
+
+      // Ensure background task is registered
+      await registerBackgroundFetchAsync();
 
       // Also check if the notification was actually scheduled
       const scheduledNotifications =
@@ -231,7 +345,7 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
   const saveChanges = () => {
     setDate(tempDate);
     setDialogOpen(false);
-    
+
     // If alarm is enabled, reschedule with new time
     if (isEnabled && hasPermission) {
       scheduleAlarm();
@@ -297,11 +411,14 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
       <Card className="p-6 mb-4">
         <Text className="text-2xl font-bold mb-4 text-center">Smart Alarm</Text>
 
-        <Pressable 
+        <Pressable
           onPress={openEditDialog}
           className="flex-row justify-between items-center mb-6 bg-secondary/20 p-4 rounded-lg"
         >
-          <Text className="text-3xl font-bold">{formattedTime}</Text>
+          <View className="flex-row items-center gap-3">
+            <Text className="text-3xl font-bold">{formattedTime}</Text>
+            <MoreHorizontal size={24} color="gray" />
+          </View>
           <Switch
             trackColor={{ false: "#767577", true: "#b4d1ec" }}
             thumbColor={isEnabled ? "#0284c7" : "#f4f3f4"}
@@ -333,8 +450,8 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
 
         {!hasPermission && (
           <Text className="text-xs text-red-500 mt-2">
-            Notification permissions not granted. Please enable notifications for
-            this app in your device settings.
+            Notification permissions not granted. Please enable notifications
+            for this app in your device settings.
           </Text>
         )}
       </Card>
@@ -352,22 +469,19 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
               mode="time"
               display={Platform.OS === "ios" ? "spinner" : "default"}
               onChange={onTimeChange}
-              themeVariant="light"
+              themeVariant={isDarkColorScheme ? "dark" : "light"}
             />
           </View>
 
           <View className="mt-2">
             <Text className="text-sm text-gray-500">
-              When this alarm goes off, "Start My Day Right" will automatically begin.
+              When this alarm goes off, "Start My Day Right" will automatically
+              begin.
             </Text>
           </View>
 
           <DialogFooter>
-            <Button 
-              variant="outline" 
-              onPress={cancelChanges} 
-              className="mr-2"
-            >
+            <Button variant="outline" onPress={cancelChanges} className="mr-2">
               <Text>Cancel</Text>
             </Button>
             <Button onPress={saveChanges}>

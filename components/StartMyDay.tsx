@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
-import { View, ActivityIndicator, Platform } from 'react-native';
+import { View, ActivityIndicator, Platform, AppState } from 'react-native';
 import { Button } from "~/components/ui/button";
 import { Text } from "~/components/ui/text";
 import { Card } from "~/components/ui/card";
 import CalendarFetcher, { CalendarFetcherRef } from '~/components/CalendarFetcher';
 import PodcastPlayer from '~/components/PodcastPlayer';
 import * as Speech from 'expo-speech';
-import { Audio, InterruptionModeIOS } from 'expo-av';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import { AVPlaybackStatus } from 'expo-av';
+import * as Notifications from 'expo-notifications';
 
 // Define the ref type
 export interface StartMyDayRef {
@@ -133,6 +134,96 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
     }, 500);
   };
 
+  // Track app state to ensure alarm continues even if app is backgrounded
+  const appState = useRef(AppState.currentState);
+  const [appActive, setAppActive] = useState(true);
+  const appStateListener = useRef<any>(null);
+  const activeSilentSound = useRef<Audio.Sound | null>(null);
+  
+  // Setup app state tracking
+  useEffect(() => {
+    appStateListener.current = AppState.addEventListener('change', nextAppState => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('App has come to the foreground!');
+        setAppActive(true);
+      } else if (nextAppState.match(/inactive|background/)) {
+        console.log('App has gone to the background!');
+        setAppActive(false);
+      }
+      appState.current = nextAppState;
+    });
+    
+    return () => {
+      appStateListener.current?.remove();
+      if (activeSilentSound.current) {
+        activeSilentSound.current.unloadAsync().catch(console.error);
+      }
+    };
+  }, []);
+
+  // Create a persistent notification when alarm is triggered from background
+  const createOngoingNotification = async () => {
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('ongoing-alarm', {
+        name: 'Ongoing Alarm',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+        sound: true,
+      });
+    }
+    
+    await Notifications.presentNotificationAsync({
+      content: {
+        title: "Good Morning",
+        body: "Your day is starting now",
+        data: { type: 'ongoing-alarm' },
+        sticky: Platform.OS === 'android',
+        autoDismiss: false,
+        priority: 'max',
+      },
+      trigger: null,
+    });
+  };
+  
+  // Play a silent audio track to keep app active in background
+  const playBackgroundSilentTrack = async () => {
+    try {
+      // Clean up any existing sound first
+      if (activeSilentSound.current) {
+        await activeSilentSound.current.unloadAsync();
+      }
+      
+      // Configure audio mode for maximum background reliability
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
+      
+      // Load and play silent sound on loop to keep audio session active
+      const { sound } = await Audio.Sound.createAsync(
+        require('~/assets/sounds/silent.mp3'),
+        { 
+          isLooping: true,
+          shouldPlay: true,
+          volume: 0.01 // Very low volume but not zero
+        }
+      );
+      
+      activeSilentSound.current = sound;
+      console.log("Silent background track started");
+    } catch (err) {
+      console.error("Error playing silent background track:", err);
+    }
+  };
+
   // Start the day routine
   const startMyDay = async () => {
     console.log('Starting my day routine');
@@ -154,12 +245,29 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
       speechTimeoutRef.current = null;
     }
     
+    // Create a persistent notification
+    await createOngoingNotification();
+    
+    // Start silent sound to keep app active in background
+    await playBackgroundSilentTrack();
+    
     // Initialize audio system early - important for waking from alarm
     try {
       console.log('Initializing audio system...');
       
       // First ensure audio is enabled (needed when app just started from alarm)
       await Audio.setIsEnabledAsync(true);
+      
+      // Configure audio for background playback
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
       
       // Do a quick audio check to ensure the system is awake
       const soundObj = new Audio.Sound();

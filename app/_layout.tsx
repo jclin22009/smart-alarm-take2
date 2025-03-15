@@ -10,6 +10,20 @@ import { useColorScheme } from '~/lib/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
 import { ThemeToggle } from '~/components/ThemeToggle';
 import { setAndroidNavigationBar } from '~/lib/android-navigation-bar';
+import * as Notifications from 'expo-notifications';
+import * as TaskManager from 'expo-task-manager';
+import * as BackgroundFetch from 'expo-background-fetch';
+import { Audio } from 'expo-av';
+
+// Configure notifications for the entire app
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    priority: Notifications.AndroidNotificationPriority.MAX,
+  }),
+});
 
 const LIGHT_THEME: Theme = {
   ...DefaultTheme,
@@ -24,6 +38,20 @@ export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
 } from 'expo-router';
+
+// Background audio setup function
+const configureAudioForBackground = async () => {
+  try {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: true,
+      shouldDuckAndroid: false,
+    });
+    console.log("Audio configured for background playback");
+  } catch (error) {
+    console.error("Error configuring audio:", error);
+  }
+};
 
 export default function RootLayout() {
   const hasMounted = React.useRef(false);
@@ -40,6 +68,35 @@ export default function RootLayout() {
       document.documentElement.classList.add('bg-background');
     }
     setAndroidNavigationBar(colorScheme);
+    
+    // Initialize background audio configuration
+    configureAudioForBackground();
+    
+    // Request notification permissions for iOS
+    if (Platform.OS === 'ios') {
+      Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+          allowAnnouncements: true,
+        },
+      });
+    }
+    
+    // Set Android notification channel for alarms
+    if (Platform.OS === 'android') {
+      Notifications.setNotificationChannelAsync('alarms', {
+        name: 'Alarms',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: true,
+        sound: true,
+      });
+    }
+    
     setIsColorSchemeLoaded(true);
     hasMounted.current = true;
   }, []);
