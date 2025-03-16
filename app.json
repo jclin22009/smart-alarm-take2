@@ -57,7 +57,7 @@
         "expo-notifications",
         {
             "sounds": [
-              "./assets/sounds/gentle_wakeup.m4a",
+              "./assets/sounds/gentle_wakeup.wav",
               "./assets/sounds/heavy_sleeper_joke.m4a", 
               "./assets/sounds/notif_spam_joke.m4a",
               "./assets/sounds/silent.mp3"

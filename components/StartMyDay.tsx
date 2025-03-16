@@ -163,24 +163,11 @@ const StartMyDay = forwardRef<StartMyDayRef, {}>((props, ref) => {
 
   // Create a persistent notification when alarm is triggered from background
   const createOngoingNotification = async () => {
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('ongoing-alarm', {
-        name: 'Ongoing Alarm',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDnd: true,
-        sound: 'default',
-      });
-    }
-    
     await Notifications.scheduleNotificationAsync({
       content: {
         title: "Good Morning",
         body: "Your day is starting now",
         data: { type: 'ongoing-alarm' },
-        sticky: Platform.OS === 'android',
         autoDismiss: false,
         priority: 'max',
       },

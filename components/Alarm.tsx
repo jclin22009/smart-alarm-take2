@@ -18,6 +18,7 @@ import {
 } from "~/components/ui/dialog";
 import { useColorScheme } from "~/lib/useColorScheme";
 import { MoreHorizontal, Volume2 } from "lucide-react-native";
+import Test from "./Test";
 
 const BACKGROUND_ALARM_TASK = "background-alarm-task";
 
@@ -75,19 +76,18 @@ TaskManager.defineTask(BACKGROUND_ALARM_TASK, async () => {
 });
 
 // Configure notifications to show alerts and play sounds
-// Notifications.setNotificationHandler({
-//   handleNotification: async () => ({
-//     shouldShowAlert: true,
-//     shouldPlaySound: true,
-//     shouldSetBadge: false,
-//     priority: Notifications.AndroidNotificationPriority.MAX,
-//   }),
-// });
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
   
 
 // Define alarm sound options based on available sound files
 const ALARM_SOUNDS = [
-  { id: 'gentle_wakeup', name: 'Gentle Wakeup', file: require('~/assets/sounds/gentle_wakeup.m4a') },
+  { id: 'gentle_wakeup', name: 'Gentle Wakeup', file: require('~/assets/sounds/gentle_wakeup.wav') },
   { id: 'heavy_sleeper_joke', name: 'Heavy Sleeper', file: require('~/assets/sounds/heavy_sleeper_joke.m4a') },
   { id: 'notif_spam_joke', name: 'Notification Spam', file: require('~/assets/sounds/notif_spam_joke.m4a') },
   { id: 'silent', name: 'Silent', file: require('~/assets/sounds/silent.mp3') },
@@ -286,7 +286,6 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
           },
         },
       ]);
-
       // Schedule the actual alarm notification
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
@@ -298,14 +297,12 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
             alarmTime: triggerTime.toISOString(),
             soundId: selectedAlarmSound.id
           },
-          sound: selectedAlarmSound.id === 'silent' ? false : selectedAlarmSound.id,
+          sound: 'gentle_wakeup.wav',
+          // sound: selectedAlarmSound.id === 'silent' ? false : selectedAlarmSound.id + '.m4a',
           // Add categoryIdentifier for actions
           categoryIdentifier: "alarm",
+          interruptionLevel: "critical",
           // Make the notification sticky on Android
-          sticky: Platform.OS === "android",
-          autoDismiss: false,
-          // Ensure highest priority on Android
-          priority: "max",
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -577,6 +574,7 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
 
   return (
     <>
+    <Test/>
       <Card className="p-6 mb-4">
 
         <Pressable

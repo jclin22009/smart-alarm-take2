@@ -15,15 +15,6 @@ import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
 import { Audio, InterruptionModeIOS } from 'expo-av';
 
-// Configure notifications for the entire app
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-    priority: Notifications.AndroidNotificationPriority.MAX,
-  }),
-});
 
 const LIGHT_THEME: Theme = {
   ...DefaultTheme,
