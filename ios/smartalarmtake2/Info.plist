@@ -40,8 +40,6 @@
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
-    <key>ITSAppUsesNonExemptEncryption</key>
-    <false/>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -98,5 +96,7 @@
     <string>Automatic</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
+    <key>com.apple.developer.usernotifications.critical-alerts</key>
+    <integer>1</integer>
   </dict>
 </plist>
