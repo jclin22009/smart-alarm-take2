@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import Constants from 'expo-constants';
+import { Audio } from 'expo-av';
 
 // Configure the notification handler immediately
 Notifications.setNotificationHandler({
@@ -43,6 +43,25 @@ export default function NotificationSoundTest() {
       const soundFileName = `${soundName}.wav`;
       console.log(`Full sound file name: ${soundFileName}`);
 
+
+      // const sound = new Audio.Sound();
+      // sound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
+
+      const { sound: soundObject, status } = await Audio.Sound.createAsync(
+        require('./assets/sounds/gentle_wakeup.wav'),
+        { shouldPlay: true }
+      );
+
+
+      // add channel (idt this is needed tbh, only for android)
+      await Notifications.setNotificationChannelAsync('wakeup', {
+        name: 'wakeup alarm',
+        importance: Notifications.AndroidImportance.HIGH,
+        sound: soundFileName,
+      });
+      
+
+
       // This is important - We need to explicitly use TIME_INTERVAL as the type
       // This ensures a delay before notification appears
       const notificationId = await Notifications.scheduleNotificationAsync({
@@ -55,6 +74,7 @@ export default function NotificationSoundTest() {
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 5,
+          channelId: 'wakeup',
         },
       });
 
@@ -111,19 +131,7 @@ export default function NotificationSoundTest() {
       status = 'granted';
     }
 
-    // Android-specific channel setup
-    if (Platform.OS === 'android') {
-      console.log('Setting up Android notification channel...');
-      
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
-      
-      console.log('Android channels set up');
-    }
+  
 
     return status;
   }

@@ -75,12 +75,14 @@ TaskManager.defineTask(BACKGROUND_ALARM_TASK, async () => {
   }
 });
 
-// Configure notifications to show alerts and play sounds
+// Configure notifications to show alerts and play sounds with critical priority
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: false,
+    priority: Notifications.AndroidNotificationPriority.MAX,
+    importance: Notifications.AndroidImportance.MAX,
   }),
 });
   
@@ -297,12 +299,14 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
             alarmTime: triggerTime.toISOString(),
             soundId: selectedAlarmSound.id
           },
-          sound: 'gentle_wakeup.wav',
-          // sound: selectedAlarmSound.id === 'silent' ? false : selectedAlarmSound.id + '.m4a',
+          sound: selectedAlarmSound.id === 'silent' ? false : selectedAlarmSound.id,
           // Add categoryIdentifier for actions
           categoryIdentifier: "alarm",
-          interruptionLevel: "critical",
+          interruptionLevel: "critical", // Critical alert for iOS
+          priority: "max", // Maximum priority for Android
           // Make the notification sticky on Android
+          sticky: Platform.OS === "android",
+          autoDismiss: false
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -523,7 +527,6 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
   async function registerForPushNotificationsAsync() {
     let status;
 
-
     // Check if we're running on a physical device
     if (Device.isDevice) {
       const { status: existingStatus } =
@@ -531,12 +534,30 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
       let finalStatus = existingStatus;
 
       if (existingStatus !== "granted") {
+        // Request permissions with critical alerts option for iOS
         const { status: newStatus } =
-          await Notifications.requestPermissionsAsync();
+          await Notifications.requestPermissionsAsync({
+            ios: {
+              allowAlert: true,
+              allowBadge: true,
+              allowSound: true,
+              // allowAnnouncements: true,
+              allowCriticalAlerts: true, // Request critical alerts permission
+              provideAppNotificationSettings: true
+            },
+            android: {}
+          });
         finalStatus = newStatus;
       }
 
       status = finalStatus;
+      console.log("Notification permissions status:", status);
+      
+      // Log iOS-specific permissions if available
+      if (Platform.OS === 'ios') {
+        const permissions = await Notifications.getPermissionsAsync();
+        console.log("iOS notification permissions:", permissions.ios);
+      }
     } else {
       // For simulator/emulator, permissions are automatically granted
       status = "granted";

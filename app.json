@@ -20,7 +20,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.jasoncl.smartalarm",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "com.apple.developer.usernotifications.critical-alerts": 1
+      },
+      "entitlements": {
+        "com.apple.developer.usernotifications.critical-alerts": true
       }
     },
     "android": {
