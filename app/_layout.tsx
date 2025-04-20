@@ -9,7 +9,6 @@ import { NAV_THEME } from '~/lib/constants';
 import { useColorScheme } from '~/lib/useColorScheme';
 import { PortalHost } from '@rn-primitives/portal';
 import { ThemeToggle } from '~/components/ThemeToggle';
-import { setAndroidNavigationBar } from '~/lib/android-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundFetch from 'expo-background-fetch';
@@ -36,7 +35,6 @@ const configureAudioForBackground = async () => {
     await Audio.setAudioModeAsync({
       playsInSilentModeIOS: true,
       staysActiveInBackground: true,
-      shouldDuckAndroid: false,
       interruptionModeIOS: InterruptionModeIOS.DoNotMix,
     });
     console.log("Audio configured for background playback");
@@ -59,7 +57,6 @@ export default function RootLayout() {
       // Adds the background color to the html element to prevent white background on overscroll.
       document.documentElement.classList.add('bg-background');
     }
-    setAndroidNavigationBar(colorScheme);
     
     // Initialize background audio configuration
     configureAudioForBackground();

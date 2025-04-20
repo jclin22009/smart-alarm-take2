@@ -86,7 +86,7 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.smartalarmtake2"
+    namespace 'com.jasoncl.smartalarm'
     defaultConfig {
         applicationId 'com.jasoncl.smartalarm'
         minSdkVersion rootProject.ext.minSdkVersion
