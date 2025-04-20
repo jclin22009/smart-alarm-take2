@@ -1,8 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import * as Device from 'expo-device';
-import { Audio } from 'expo-av';
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+  Alert,
+} from "react-native";
+import * as Notifications from "expo-notifications";
+import * as Device from "expo-device";
+// import { Audio } from "expo-av";
 
 // Configure the notification handler immediately
 Notifications.setNotificationHandler({
@@ -15,14 +22,14 @@ Notifications.setNotificationHandler({
 });
 
 export default function NotificationSoundTest() {
-  const [expoPushToken, setExpoPushToken] = useState('');
-  const [permissionStatus, setPermissionStatus] = useState('unknown');
+  const [expoPushToken, setExpoPushToken] = useState("");
+  const [permissionStatus, setPermissionStatus] = useState("unknown");
   const [isLoading, setIsLoading] = useState(false);
 
   // Request notification permissions on component mount
   useEffect(() => {
-    registerForPushNotificationsAsync().then(status => {
-      console.log('Permission status:', status);
+    registerForPushNotificationsAsync().then((status) => {
+      console.log("Permission status:", status);
       setPermissionStatus(status);
     });
 
@@ -43,50 +50,48 @@ export default function NotificationSoundTest() {
       const soundFileName = `${soundName}.wav`;
       console.log(`Full sound file name: ${soundFileName}`);
 
-
       // const sound = new Audio.Sound();
       // sound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
 
-      const { sound: soundObject, status } = await Audio.Sound.createAsync(
-        require('./assets/sounds/gentle_wakeup.wav'),
-        { shouldPlay: true }
-      );
-
+      // const { sound } = await Audio.Sound.createAsync(
+      //   require("~/assets/sounds/gentle_wakeup.wav")
+      // );
+      // await sound.playAsync();
 
       // add channel (idt this is needed tbh, only for android)
-      await Notifications.setNotificationChannelAsync('wakeup', {
-        name: 'wakeup alarm',
+      await Notifications.setNotificationChannelAsync("wakeup", {
+        name: "wakeup alarm",
         importance: Notifications.AndroidImportance.HIGH,
         sound: soundFileName,
       });
-      
-
 
       // This is important - We need to explicitly use TIME_INTERVAL as the type
       // This ensures a delay before notification appears
       const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Sound Test',
-          body: 'This notification should play a custom sound',
+          title: "Sound Test",
+          body: "This notification should play a custom sound",
           sound: soundFileName,
-          interruptionLevel: 'critical',
+          interruptionLevel: "critical",
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: 5,
-          channelId: 'wakeup',
+          channelId: "wakeup",
         },
       });
 
-      console.log(`Notification scheduled with ID: ${notificationId} - Will trigger in 5 seconds`);
+      console.log(
+        `Notification scheduled with ID: ${notificationId} - Will trigger in 5 seconds`
+      );
       Alert.alert(
-        'Notification Scheduled',
+        "Notification Scheduled",
         `A notification with sound "${soundName}" will trigger in 5 seconds. ID: ${notificationId}`,
-        [{ text: 'OK' }]
+        [{ text: "OK" }]
       );
     } catch (error: any) {
-      console.error('Error scheduling notification:', error);
-      Alert.alert('Error', `Failed to schedule notification: ${error.message}`);
+      console.error("Error scheduling notification:", error);
+      Alert.alert("Error", `Failed to schedule notification: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -98,40 +103,40 @@ export default function NotificationSoundTest() {
 
     // Only request permission on physical devices
     if (Device.isDevice) {
-      console.log('Checking notification permissions...');
-      
+      console.log("Checking notification permissions...");
+
       // Get current permission status
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      console.log('Existing permission status:', existingStatus);
-      
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      console.log("Existing permission status:", existingStatus);
+
       let finalStatus = existingStatus;
-      
+
       // Request permissions if not already granted
-      if (existingStatus !== 'granted') {
-        console.log('Requesting notification permissions...');
-        
-        const { status: newStatus } = await Notifications.requestPermissionsAsync({
-          ios: {
-            allowAlert: true,
-            allowBadge: true,
-            allowSound: true,
-            // Request critical alert permissions for alarms
-            allowCriticalAlerts: true,
-          },
-        });
-        
-        console.log('New permission status:', newStatus);
+      if (existingStatus !== "granted") {
+        console.log("Requesting notification permissions...");
+
+        const { status: newStatus } =
+          await Notifications.requestPermissionsAsync({
+            ios: {
+              allowAlert: true,
+              allowBadge: true,
+              allowSound: true,
+              // Request critical alert permissions for alarms
+              allowCriticalAlerts: true,
+            },
+          });
+
+        console.log("New permission status:", newStatus);
         finalStatus = newStatus;
       }
-      
+
       status = finalStatus;
     } else {
       // For simulator/emulator
-      console.log('Using simulator, permissions automatically granted');
-      status = 'granted';
+      console.log("Using simulator, permissions automatically granted");
+      status = "granted";
     }
-
-  
 
     return status;
   }
@@ -140,46 +145,51 @@ export default function NotificationSoundTest() {
   const renderDebugInfo = () => (
     <View style={styles.debugContainer}>
       <Text style={styles.debugTitle}>Debug Info</Text>
-      <Text style={styles.debugText}>Permission Status: {permissionStatus}</Text>
+      <Text style={styles.debugText}>
+        Permission Status: {permissionStatus}
+      </Text>
       <Text style={styles.debugText}>Platform: {Platform.OS}</Text>
-      <Text style={styles.debugText}>Push Token: {expoPushToken || 'None'}</Text>
+      <Text style={styles.debugText}>
+        Push Token: {expoPushToken || "None"}
+      </Text>
     </View>
   );
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Notification Sound Test</Text>
-      
+
       <TouchableOpacity
         style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={() => scheduleNotificationWithSound('gentle_wakeup')}
-        disabled={isLoading || permissionStatus !== 'granted'}
+        onPress={() => scheduleNotificationWithSound("gentle_wakeup")}
+        disabled={isLoading || permissionStatus !== "granted"}
       >
         <Text style={styles.buttonText}>Test "Gentle Wakeup" Sound</Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={() => scheduleNotificationWithSound('heavy_sleeper_joke')}
-        disabled={isLoading || permissionStatus !== 'granted'}
+        onPress={() => scheduleNotificationWithSound("heavy_sleeper_joke")}
+        disabled={isLoading || permissionStatus !== "granted"}
       >
         <Text style={styles.buttonText}>Test "Heavy Sleeper" Sound</Text>
       </TouchableOpacity>
-      
+
       <TouchableOpacity
         style={[styles.button, isLoading && styles.buttonDisabled]}
-        onPress={() => scheduleNotificationWithSound('notif_spam_joke')}
-        disabled={isLoading || permissionStatus !== 'granted'}
+        onPress={() => scheduleNotificationWithSound("notif_spam_joke")}
+        disabled={isLoading || permissionStatus !== "granted"}
       >
         <Text style={styles.buttonText}>Test "Notification Spam" Sound</Text>
       </TouchableOpacity>
-      
-      {permissionStatus !== 'granted' && (
+
+      {permissionStatus !== "granted" && (
         <Text style={styles.warningText}>
-          Notification permissions not granted. Please enable notifications in settings.
+          Notification permissions not granted. Please enable notifications in
+          settings.
         </Text>
       )}
-      
+
       {renderDebugInfo()}
     </View>
   );
@@ -188,48 +198,48 @@ export default function NotificationSoundTest() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 30,
-    color: '#333',
+    color: "#333",
   },
   button: {
-    backgroundColor: '#0284c7',
+    backgroundColor: "#0284c7",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
     marginBottom: 16,
-    width: '100%',
-    alignItems: 'center',
+    width: "100%",
+    alignItems: "center",
   },
   buttonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: "#ccc",
   },
   buttonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   warningText: {
-    color: 'red',
+    color: "red",
     marginTop: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   debugContainer: {
     marginTop: 30,
     padding: 15,
-    backgroundColor: '#eee',
+    backgroundColor: "#eee",
     borderRadius: 8,
-    width: '100%',
+    width: "100%",
   },
   debugTitle: {
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 10,
   },
   debugText: {

@@ -595,7 +595,6 @@ const Alarm = ({ onTrigger }: AlarmProps) => {
 
   return (
     <>
-    <Test/>
       <Card className="p-6 mb-4">
 
         <Pressable
